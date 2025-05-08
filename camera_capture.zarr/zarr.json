@@ -1,0 +1,12 @@
+{
+  "attributes": {
+    "created": "2025-05-07T14:39:06.210937",
+    "fps": 30.0,
+    "resolution": "640x480",
+    "color_space": "BGR",
+    "description": "OpenCV\u6444\u50cf\u5934\u91c7\u96c6"
+  },
+  "zarr_format": 3,
+  "consolidated_metadata": null,
+  "node_type": "group"
+}
