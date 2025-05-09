@@ -1,5 +1,8 @@
 import asyncio
-from recorder import VideoRecorder
+from utils.recorder import VideoRecorder
+from utils.display import DisplayManager
+from utils.writer import WriteManager
+from utils.capture import CaptureManager
 
 async def main():
     recorder = VideoRecorder(
