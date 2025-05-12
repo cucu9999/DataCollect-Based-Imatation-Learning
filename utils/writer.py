@@ -1,6 +1,6 @@
+import os
 import zarr
 import numpy as np
-import os
 from datetime import datetime
 from numcodecs import Blosc
 from zarr.storage import DirectoryStore
@@ -19,8 +19,8 @@ class WriteManager:
 
         os.makedirs(os.path.dirname(self.zarr_path), exist_ok=True)
 
-        # 打开或新建 Zarr 文件
-        store = DirectoryStore(self.zarr_path)  # 强制 v2 存储格式
+        # 打开或新建Zarr文件
+        store = DirectoryStore(self.zarr_path)  # 强制v2存储格式
         root = zarr.group(store=store, overwrite=False)
 
         if 'video' not in root:
@@ -29,7 +29,7 @@ class WriteManager:
             height, width, _ = first_frame.shape
             chunk_shape = (self.chunk_size, height, width, 3)
 
-            # 使用 Blosc 压缩器（兼容 Zarr v2）
+            # 使用Blosc压缩器（兼容Zarr v2）
             compressor = Blosc(cname='zstd', clevel=self.compression_level, shuffle=Blosc.BITSHUFFLE)
 
             self.video_array = root.create_dataset(
@@ -72,3 +72,22 @@ class WriteManager:
         self.video_array[current_frames:new_total] = frames
 
         print(f"已写入 {frames.shape[0]} 帧，当前总帧数: {new_total}")
+
+if __name__ == "__main__":
+    import numpy as np, shutil, os, zarr
+
+    dummy = np.zeros((480, 640, 3), dtype=np.uint8)
+    frames = [dummy] * 5
+    path = "test_writer_debug.zarr"
+
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
+    WriteManager(path).write_batch(frames)
+
+    data = zarr.open(path, mode="r")["video"]
+    print("写入成功，帧数:", data.shape[0])
+
+     # 自动删除调试文件夹
+    shutil.rmtree(path)
+    print("已删除测试 Zarr 文件夹。")

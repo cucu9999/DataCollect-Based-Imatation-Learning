@@ -1,6 +1,6 @@
-import cv2 
-import threading
+import cv2
 import platform
+import threading
 
 class DisplayManager:
     def __init__(self, window_name="Recording"):

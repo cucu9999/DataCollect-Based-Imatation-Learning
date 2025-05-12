@@ -1,11 +1,11 @@
-import sys
 import os
+import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-import asyncio
-from tempfile import TemporaryDirectory
 import shutil
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 from tkinter import Tk, filedialog
+from tempfile import TemporaryDirectory
+from concurrent.futures import ThreadPoolExecutor
 
 # 添加 utils 文件夹到模块搜索路径
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
@@ -18,10 +18,10 @@ from utils.writer import WriteManager
 class VideoRecorder:
     def __init__(self, zarr_path=None, target_fps=30, chunk_size=60, compression_level=1):
         if zarr_path is None:
-            # 每次运行生成唯一的临时文件夹
+            
             temp_dir = TemporaryDirectory()
             zarr_path = os.path.join(temp_dir.name, "recording.zarr")
-            self._temp_dir = temp_dir  # 保存临时目录引用，防止提前被清理
+            self._temp_dir = temp_dir  
         self.zarr_path = os.path.abspath(zarr_path)
         self.target_fps = target_fps
         self.chunk_size = chunk_size
