@@ -6,7 +6,7 @@ from numcodecs import Blosc
 from zarr.storage import DirectoryStore
 
 class WriteManager:
-    def __init__(self, zarr_path, chunk_size=30, compression_level=5):
+    def __init__(self, zarr_path, chunk_size=60, compression_level=7):
         self.zarr_path = os.path.abspath(zarr_path)
         self.chunk_size = chunk_size
         self.compression_level = compression_level
@@ -30,7 +30,7 @@ class WriteManager:
             chunk_shape = (self.chunk_size, height, width, 3)
 
             # 使用 Blosc 压缩器（兼容 Zarr v2）
-            compressor = Blosc(cname='lz4', clevel=self.compression_level, shuffle=Blosc.SHUFFLE)
+            compressor = Blosc(cname='zstd', clevel=self.compression_level, shuffle=Blosc.BITSHUFFLE)
 
             self.video_array = root.create_dataset(
                 name='video',

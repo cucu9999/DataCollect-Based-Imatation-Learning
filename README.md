@@ -26,6 +26,29 @@
 
 ## 2. 数据采集系统的组成及类构成
 
+### 2.1 数据采集系统组成
+
+​	本系统包含三个核心模块：采集、显示、写入，彼此通过队列协作完成异步视频采集任务：
+
+| 模块               | 功能描述                                         |
+| ------------------ | ------------------------------------------------ |
+| **main.py**        | 系统入口，启动异步任务                           |
+| **CaptureManager** | 控制摄像头，异步采集图像帧                       |
+| **DisplayManager** | 显示图像帧，响应用户输入                         |
+| **WriteManager**   | 批量管理 Zarr 数据写入                           |
+| **VideoRecorder**  | 协调采集、显示与写入模块，控制状态切换与任务调度 |
+
+### 2.2 数据采集系统的流程图
+![系统流程图](流程图.png)
+
+### 2.3 数据采集系统的类构成
+
+| 类名               | 主要方法                                                     | 作用                                 |
+| ------------------ | ------------------------------------------------------------ | ------------------------------------ |
+| **CaptureManager** | initialize()` `capture_frames()` `request_stop()             | 管理摄像头初始化与异步帧采集         |
+| **DisplayManager** | start()` `update_frame()` `register_space_callback()` `register_stop_callback() | 显示图像帧并响应用户操作             |
+| **WriteManager**   | write_batch(frames)` `_initialize_if_needed(first_frame)     | 初始化并写入 Zarr 文件数据集         |
+| **VideoRecorder**  | start()` `_process_frames()` `_write_frames()                | 协调各组件工作逻辑，是系统核心控制器 |
 
 
 ## 3. 协程和多线程的介绍及最终的选用
