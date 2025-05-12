@@ -28,8 +28,8 @@ class VideoRecorder:
         self.compression_level = compression_level
 
         self.capture = CaptureManager(target_fps)
-        self.display = DisplayManager()
-        self.writer = WriteManager(self.zarr_path, chunk_size, compression_level)
+        self.display = DisplayManager() 
+        self.writer = WriteManager(self.zarr_path, chunk_size, compression_level) 
 
         self.executor = ThreadPoolExecutor(max_workers=3)
         self.recording = False

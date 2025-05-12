@@ -3,8 +3,12 @@ import asyncio
 import platform
 
 class CaptureManager:
-    def __init__(self, target_fps):
+    def __init__(self, target_fps=30, width=640, height=480, camera_index=0):
         self.target_fps = target_fps
+        self.width = width
+        self.height = height
+        self.camera_index = camera_index
+
         self.cap = None
         self.last_frame = None
         self.recording = False
@@ -52,9 +56,9 @@ if __name__ == "__main__":
     import cv2
     from asyncio import Queue
 
-    async def test_capture():
+    async def test_capture(target_fps=30, width=640, height=480, camera_index=0):
         frame_queue = Queue()
-        cap_manager = CaptureManager(target_fps=30)
+        cap_manager = CaptureManager(target_fps=target_fps, width=width, height=height, camera_index=camera_index)
         await cap_manager.initialize()
 
         async def show_frames():
@@ -76,4 +80,4 @@ if __name__ == "__main__":
         cap_manager.release()
         cv2.destroyAllWindows()
 
-    asyncio.run(test_capture())
+    asyncio.run(test_capture(target_fps=30, width=640, height=480, camera_index=0))

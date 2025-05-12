@@ -13,8 +13,8 @@ class DisplayManager:
         self._external_space_callback = None
         self._external_stop_callback = None
 
-    def update_frame(self, frame):
-        self.last_frame = frame
+    def update_frame(self, frame): 
+        self.last_frame = frame 
 
     def register_space_callback(self, callback):
         """注册空格键按下后的回调函数（开始/停止录制）"""
@@ -88,6 +88,6 @@ if __name__ == "__main__":
             display.update_frame(dummy_frame)
             time.sleep(1/30)
     finally:
-        display.stop()
+        display.stop() 
 
 
