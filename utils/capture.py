@@ -46,3 +46,34 @@ class CaptureManager:
     def release(self):
         if self.cap and self.cap.isOpened():
             self.cap.release()
+
+if __name__ == "__main__":
+    import asyncio
+    import cv2
+    from asyncio import Queue
+
+    async def test_capture():
+        frame_queue = Queue()
+        cap_manager = CaptureManager(target_fps=30)
+        await cap_manager.initialize()
+
+        async def show_frames():
+            while True:
+                frame = await frame_queue.get()
+                if frame is None:
+                    print("收到空帧，跳过...")
+                    continue
+                cv2.imshow("Camera Preview", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    cap_manager.request_stop()
+                    break
+
+        await asyncio.gather(
+            cap_manager.capture_frames(frame_queue),
+            show_frames()
+        )
+
+        cap_manager.release()
+        cv2.destroyAllWindows()
+
+    asyncio.run(test_capture())

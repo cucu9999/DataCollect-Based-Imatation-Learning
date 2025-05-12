@@ -65,3 +65,29 @@ class DisplayManager:
 
     def should_stop(self):
         return self.q_pressed
+
+if __name__ == "__main__":
+    import numpy as np
+    import time
+
+    def on_space():
+        print("空格键按下：模拟开始/停止录制")
+
+    def on_quit():
+        print("Q 键按下：退出显示")
+
+    display = DisplayManager("测试显示窗口")
+    display.register_space_callback(on_space)
+    display.register_stop_callback(on_quit)
+
+    display.start()
+
+    try:
+        while not display.should_stop():
+            dummy_frame = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
+            display.update_frame(dummy_frame)
+            time.sleep(1/30)
+    finally:
+        display.stop()
+
+

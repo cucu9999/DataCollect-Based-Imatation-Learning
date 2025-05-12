@@ -6,7 +6,6 @@ from utils.capture import CaptureManager
 
 async def main():
     recorder = VideoRecorder(
-        "camera_capture.zarr",
         target_fps=30,
         chunk_size=60,
         compression_level=1
