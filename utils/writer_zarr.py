@@ -49,7 +49,7 @@ class WriteManager_Zarr:
             })
             print("已创建新的视频数据集。")
         else:
-            print("Zarr文件存在，加载已有数据集。")
+            print("文件存在，加载已有数据集。")
             self.video_array = root['video']
 
     def write_batch(self, frames):

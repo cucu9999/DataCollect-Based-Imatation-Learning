@@ -9,7 +9,7 @@ class WriteManager_HDF5:
         self.chunk_size = chunk_size
         self.compression_level = compression_level
         self.dataset = None
-        self.total_written = 0
+        self.total_written = 0  
 
     def _initialize_if_needed(self, first_frame):
         if self.dataset is not None:
@@ -40,6 +40,7 @@ class WriteManager_HDF5:
         print("已创建 HDF5 数据集")
 
     def write_batch(self, frames):
+        """将一批帧写入 HDF5 文件"""
         if not frames:
             print("没有帧可写入。")
             return
@@ -53,10 +54,29 @@ class WriteManager_HDF5:
         new_total = self.total_written + frames.shape[0]
         self.dataset.resize((new_total, *self.dataset.shape[1:]))
         self.dataset[self.total_written:new_total] = frames
-        self.total_written = new_total
+        self.total_written = new_total  
 
         print(f"已写入 {frames.shape[0]} 帧，当前总帧数: {self.total_written}")
 
     def __del__(self):
         if hasattr(self, 'hdf5_file'):
+            # 确保文件完全关闭
+            self.hdf5_file.flush()
             self.hdf5_file.close()
+
+
+if __name__ == "__main__":
+    import numpy as np, shutil, os, h5py
+    dummy = np.zeros((480, 640, 3), dtype=np.uint8)
+    frames = [dummy] * 5
+    path = "test_writer_debug.h5"
+
+    if os.path.exists(path):
+        os.remove(path)  
+
+    WriteManager_HDF5(path).write_batch(frames)
+
+    print("写入成功，已完成 HDF5 文件创建并写入。")
+
+    os.remove(path)
+    print("已删除测试 HDF5 文件。")
