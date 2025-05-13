@@ -1,0 +1,62 @@
+import os
+import h5py
+import numpy as np
+from datetime import datetime
+
+class WriteManager_HDF5:
+    def __init__(self, hdf5_path, chunk_size=60, compression_level=5):
+        self.hdf5_path = os.path.abspath(hdf5_path)
+        self.chunk_size = chunk_size
+        self.compression_level = compression_level
+        self.dataset = None
+        self.total_written = 0
+
+    def _initialize_if_needed(self, first_frame):
+        if self.dataset is not None:
+            return
+
+        os.makedirs(os.path.dirname(self.hdf5_path), exist_ok=True)
+        self.hdf5_file = h5py.File(self.hdf5_path, 'a')
+
+        height, width, _ = first_frame.shape
+        maxshape = (None, height, width, 3)
+        chunks = (self.chunk_size, height, width, 3)
+
+        self.dataset = self.hdf5_file.create_dataset(
+            'video',
+            shape=(0, height, width, 3),
+            maxshape=maxshape,
+            chunks=chunks,
+            dtype='uint8',
+            compression='gzip',
+            compression_opts=self.compression_level
+        )
+
+        self.hdf5_file.attrs['created'] = datetime.now().isoformat()
+        self.hdf5_file.attrs['color_space'] = 'BGR'
+        self.hdf5_file.attrs['resolution'] = f"{width}x{height}"
+        self.hdf5_file.attrs['fps'] = 30
+
+        print("已创建 HDF5 数据集")
+
+    def write_batch(self, frames):
+        if not frames:
+            print("没有帧可写入。")
+            return
+
+        frames = np.asarray(frames)
+        if frames.ndim == 3:
+            frames = frames[np.newaxis, ...]
+
+        self._initialize_if_needed(frames[0])
+
+        new_total = self.total_written + frames.shape[0]
+        self.dataset.resize((new_total, *self.dataset.shape[1:]))
+        self.dataset[self.total_written:new_total] = frames
+        self.total_written = new_total
+
+        print(f"已写入 {frames.shape[0]} 帧，当前总帧数: {self.total_written}")
+
+    def __del__(self):
+        if hasattr(self, 'hdf5_file'):
+            self.hdf5_file.close()
