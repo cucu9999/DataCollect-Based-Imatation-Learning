@@ -17,7 +17,7 @@ from utils.writer_hdf5 import WriteManager_HDF5
 
 
 class VideoRecorder:
-    def __init__(self, target_fps=30, chunk_size=60, compression_level=1):
+    def __init__(self, target_fps=30, chunk_size=60, compression_level=5):
         temp_dir = TemporaryDirectory()
         self._temp_dir = temp_dir
         self.output_path = os.path.join(temp_dir.name, "recording.zarr")  # 临时路径统一使用 zarr 格式存储

@@ -1,8 +1,4 @@
 import asyncio
-from utils.capture import CaptureManager
-from utils.display import DisplayManager
-from utils.writer_zarr import WriteManager_Zarr
-from utils.writer_hdf5 import WriteManager_HDF5
 from utils.recorder import VideoRecorder
 
 async def main():

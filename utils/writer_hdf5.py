@@ -10,6 +10,7 @@ class WriteManager_HDF5:
         self.compression_level = compression_level
         self.dataset = None
         self.total_written = 0  
+        self.hdf5_file = None
 
     def _initialize_if_needed(self, first_frame):
         if self.dataset is not None:
@@ -22,8 +23,10 @@ class WriteManager_HDF5:
         maxshape = (None, height, width, 3)
         chunks = (self.chunk_size, height, width, 3)
 
-        self.dataset = self.hdf5_file.create_dataset(
-            'video',
+        obs_group = self.hdf5_file.require_group("observations")
+        img_group = obs_group.require_group("images")
+        self.dataset = img_group.create_dataset(
+            'top',
             shape=(0, height, width, 3),
             maxshape=maxshape,
             chunks=chunks,
@@ -31,6 +34,12 @@ class WriteManager_HDF5:
             compression='gzip',
             compression_opts=self.compression_level
         )
+
+        # 创建空的 qpos 和 qvel（以零占位，或稍后填充）
+        obs_group.create_dataset('qpos', shape=(0,), maxshape=(None,), dtype='float32')
+        obs_group.create_dataset('qvel', shape=(0,), maxshape=(None,), dtype='float32')
+        # 创建空的 action（也可以后期追加）
+        self.hdf5_file.create_dataset('action', shape=(0,), maxshape=(None,), dtype='float32')
 
         self.hdf5_file.attrs['created'] = datetime.now().isoformat()
         self.hdf5_file.attrs['color_space'] = 'BGR'
@@ -66,7 +75,7 @@ class WriteManager_HDF5:
 
 
 if __name__ == "__main__":
-    import numpy as np, shutil, os, h5py
+    import numpy as np, os, h5py
     dummy = np.zeros((480, 640, 3), dtype=np.uint8)
     frames = [dummy] * 5
     path = "test_writer_debug.h5"

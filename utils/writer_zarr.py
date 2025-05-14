@@ -6,7 +6,7 @@ from numcodecs import Blosc
 from zarr.storage import DirectoryStore
 
 class WriteManager_Zarr:
-    def __init__(self, zarr_path, chunk_size=60, compression_level=7):
+    def __init__(self, zarr_path, chunk_size=60, compression_level=5):
         self.zarr_path = os.path.abspath(zarr_path)
         self.chunk_size = chunk_size
         self.compression_level = compression_level
@@ -24,7 +24,7 @@ class WriteManager_Zarr:
         root = zarr.group(store=store, overwrite=False)
 
         if 'video' not in root:
-            print("Zarr文件不存在或未包含 'video' 数据集，正在创建...")
+            print("文件不存在或未包含数据集，正在创建...")
 
             height, width, _ = first_frame.shape
             chunk_shape = (self.chunk_size, height, width, 3)
@@ -90,4 +90,4 @@ if __name__ == "__main__":
 
      # 自动删除调试文件夹
     shutil.rmtree(path)
-    print("已删除测试 Zarr 文件夹。")
+    print("已删除测试文件夹。")
