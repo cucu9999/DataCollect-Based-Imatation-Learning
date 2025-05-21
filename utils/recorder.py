@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 # 添加 utils 文件夹到模块搜索路径
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
 
-from utils.capture import CaptureManager
+from utils.asyncio_capture import CaptureManager
 from utils.display import DisplayManager
 from utils.writer_zarr import WriteManager_Zarr
 from utils.writer_hdf5 import WriteManager_HDF5
