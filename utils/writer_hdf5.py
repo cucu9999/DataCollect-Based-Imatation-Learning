@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 
 class WriteManager_HDF5:
-    def __init__(self, hdf5_path, chunk_size=60, compression_level=5):
+    def __init__(self, hdf5_path, chunk_size=120, compression_level=5):
         self.hdf5_path = os.path.abspath(hdf5_path)
         self.chunk_size = chunk_size
         self.compression_level = compression_level
@@ -48,6 +48,47 @@ class WriteManager_HDF5:
 
         print("已创建 HDF5 数据集")
 
+    def write_top_image_with_timestamp(self, frame):
+        """ 写入图像帧数据与时间戳 """
+        timestamp = datetime.now().isoformat()
+
+        frames = np.asarray([frame])
+        if frames.ndim == 3:
+            frames = frames[np.newaxis, ...]
+
+        self._initialize_if_needed(frames[0])
+
+        # 写入图像数据到 observations/images/top
+        new_total = self.total_written + frames.shape[0]
+        self.dataset.resize((new_total, *self.dataset.shape[1:]))
+        self.dataset[self.total_written:new_total] = frames
+        self.total_written = new_total  
+
+        # 记录时间戳
+        self.hdf5_file["observations"].attrs['image_timestamp'] = timestamp
+
+        # 强制刷新，确保数据写入磁盘
+        self.hdf5_file.flush()
+
+        print(f"已写入图像帧，当前总帧数: {self.total_written}")
+
+    def write_eye_action_with_timestamp(self, action):
+        """ 写入舵机动作数据与时间戳 """
+        timestamp = datetime.now().isoformat()
+
+        action = np.asarray([action], dtype=np.float32)
+
+        # 写入舵机动作数据到 observations/action
+        action_dataset = self.hdf5_file["action"]
+        new_total = action_dataset.shape[0] + action.shape[0]
+        action_dataset.resize((new_total,))
+        action_dataset[-action.shape[0]:] = action
+
+        # 记录时间戳
+        self.hdf5_file["observations"].attrs['action_timestamp'] = timestamp
+
+        print(f"已写入舵机动作，当前总动作数: {new_total}")
+
     def write_batch(self, frames):
         """将一批帧写入 HDF5 文件"""
         if not frames:
@@ -68,10 +109,10 @@ class WriteManager_HDF5:
         print(f"已写入 {frames.shape[0]} 帧，当前总帧数: {self.total_written}")
 
     def __del__(self):
-        if hasattr(self, 'hdf5_file'):
-            # 确保文件完全关闭
+        if hasattr(self, 'hdf5_file') and self.hdf5_file:
             self.hdf5_file.flush()
             self.hdf5_file.close()
+            self.hdf5_file = None
 
 
 if __name__ == "__main__":
@@ -83,7 +124,9 @@ if __name__ == "__main__":
     if os.path.exists(path):
         os.remove(path)  
 
-    WriteManager_HDF5(path).write_batch(frames)
+    manager = WriteManager_HDF5(path)
+    for frame in frames:
+        manager.write_top_image_with_timestamp(frame)
 
     print("写入成功，已完成 HDF5 文件创建并写入。")
 

@@ -1,133 +1,175 @@
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-import shutil
+import cv2
+import time
+import queue
 import asyncio
-from tkinter import Tk, filedialog
-from tempfile import TemporaryDirectory
-from concurrent.futures import ThreadPoolExecutor
-
-# 添加 utils 文件夹到模块搜索路径
-sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
-
-from utils.asyncio_capture import CaptureManager
-from utils.display import DisplayManager
-from utils.writer_zarr import WriteManager_Zarr
-from utils.writer_hdf5 import WriteManager_HDF5
-
+import display
+import threading
+from writer_hdf5 import WriteManager_HDF5
+from track import ServoController
+import sys
 
 class VideoRecorder:
-    def __init__(self, target_fps=30, chunk_size=60, compression_level=5):
-        temp_dir = TemporaryDirectory()
-        self._temp_dir = temp_dir
-        self.output_path = os.path.join(temp_dir.name, "recording.zarr")  # 临时路径统一使用 zarr 格式存储
+    def __init__(self, target_fps=30, width=640, height=480, camera_index=0, frame_queue_size=260, servo_queue_size=260):
         self.target_fps = target_fps
-        self.chunk_size = chunk_size
-        self.compression_level = compression_level
+        self.width = width
+        self.height = height
+        self.camera_index = camera_index
+        self.frame_queue_size = frame_queue_size
+        self.servo_queue_size = servo_queue_size
 
-        self.capture = CaptureManager(target_fps)
-        self.display = DisplayManager()
-
-        # 临时写入器统一使用 Zarr 存储帧数据
-        self.writer = WriteManager_Zarr(self.output_path, chunk_size, compression_level)
-        self.recorded_frames = []
-
-        self.executor = ThreadPoolExecutor(max_workers=3)
+        self.cap = None
+        self.last_frame = None
         self.recording = False
-        self._should_stop = False
+        self._stop_event = threading.Event()
 
-    def _handle_space_request(self):
-        self.recording = not self.recording
-        print("开始录制..." if self.recording else "暂停录制...")
+        self.frame_queue = queue.Queue(maxsize=self.frame_queue_size)  # 共享队列
+        self.servo_queue = queue.Queue(maxsize=self.servo_queue_size)
+        self.display_manager = display.DisplayManager()
+        self.display_manager.register_stop_callback(self.on_quit)    # 注册退出回调
 
-    def _handle_stop_request(self):
-        self._should_stop = True
-        self.capture.request_stop()
+        self.save_path = None
 
-    async def _process_frames(self, frame_queue):
-        frames_batch = []
-        while not self._should_stop or not frame_queue.empty():
+    def initialize(self, save_path=None):
+        if save_path:
+            self.save_path = save_path
+        if not self.save_path:
+            print("没有指定保存路径，程序退出。")
+            sys.exit(1)
+
+        self.cap = cv2.VideoCapture(self.camera_index)
+        if not self.cap.isOpened():
+            raise RuntimeError("无法打开摄像头")
+
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.cap.set(cv2.CAP_PROP_FPS, self.target_fps)
+
+    def capture_frames(self):
+        self.recording = True
+        while not self._stop_event.is_set():
+            ret, frame = self.cap.read()
+
+            if not ret or frame is None:
+                continue
+
             try:
-                frame = await asyncio.wait_for(frame_queue.get(), timeout=1.0)
-                self.display.update_frame(frame)
+                if self.frame_queue.qsize() < self.frame_queue_size:
+                    self.frame_queue.put_nowait(frame)  # 将帧放入队列
+            except queue.Full:
+                pass
 
-                if self.recording:
-                    self.recorded_frames.append(frame)
-                    frames_batch.append(frame)
+            try:
+                if not self.frame_queue.empty():
+                    display_frame = self.frame_queue.queue[0]
+                    self.display_manager.update_frame(display_frame)  # 显示帧
+            except queue.Empty:
+                pass
 
-                    if len(frames_batch) >= self.chunk_size:
-                        await self._write_frames(frames_batch)
-                        frames_batch.clear()
-            except asyncio.TimeoutError:
-                if self._should_stop:
-                    break
+            self.last_frame = frame
+        self.recording = False
 
-        if frames_batch:
-            await self._write_frames(frames_batch)
+    def on_quit(self):
+        print("退出程序")
+        self.request_stop()  
+        self.release()  
 
-    async def _write_frames(self, frames):
-        await asyncio.get_event_loop().run_in_executor(
-            self.executor,
-            self.writer.write_batch,
-            frames.copy()
-        )
+    def request_stop(self):
+        self._stop_event.set()
 
-    async def start(self):
-        self.display.register_space_callback(self._handle_space_request)
-        self.display.register_stop_callback(self._handle_stop_request)
-        await self.capture.initialize()
+    def release(self):
+        if self.cap and self.cap.isOpened():
+            self.cap.release()
+        self.display_manager.stop()
 
-        self.display.start()
-        frame_queue = asyncio.Queue()
+    def start(self):
+        self.display_manager.start()
+        capture_thread = threading.Thread(target=self.capture_frames)
+        capture_thread.start()
+        return capture_thread
 
-        capture_task = asyncio.create_task(self.capture.capture_frames(frame_queue))
-        process_task = asyncio.create_task(self._process_frames(frame_queue))
+    def save_data(self):
+        if self.save_path:
+            print(f"数据保存到: {self.save_path}")
+        else:
+            print("⚠️ 没有设置保存路径")
 
-        try:
-            await asyncio.gather(capture_task, process_task)
-        finally:
-            self.capture.release()
-            self.display.stop()
-            self.executor.shutdown(wait=True)
+def control_servo(servo_queue, frame_queue, stop_event):
+    servo_controller = ServoController(servo_queue, frame_queue)
 
-            print("录制完成，准备保存文件...")
+    while not stop_event.is_set() or not frame_queue.empty():
+        if not frame_queue.empty():
+            frame = frame_queue.get_nowait()
+            servo_controller.process(frame)  # 控制舵机
+        time.sleep(0.02)
 
-            # 保存对话框
-            root = Tk()
-            root.withdraw()
-            filetypes = [("Zarr 文件夹", "*.zarr"), ("HDF5 文件", "*.h5")]
+    print("第二个线程（舵机控制）结束")
 
-            save_path = filedialog.asksaveasfilename(
-                title="保存文件为...",
-                defaultextension=".zarr",
-                filetypes=filetypes,
-                initialfile="new_recording"
-            )
 
-            if save_path:
-                ext = os.path.splitext(save_path)[1].lower()
-                if ext == ".zarr":
-                    final_writer = WriteManager_Zarr(save_path, self.chunk_size, self.compression_level)
-                elif ext == ".h5":
-                    final_writer = WriteManager_HDF5(save_path, self.chunk_size, self.compression_level)
-                else:
-                    print("不支持的文件扩展名，取消保存。")
-                    shutil.rmtree(self.output_path, ignore_errors=True)
-                    return
+async def write_data_to_h5_async(frame_queue, servo_queue, write_manager, stop_event):
+    frames_batch = []
+    servo_batch = []
 
-                # 重新写入完整帧数据
-                print("正在将数据写入最终文件...")
-                final_writer.write_batch(self.recorded_frames)
-                print(f"文件已保存到: {save_path}")
-            else:
-                print("用户取消保存，临时文件将被删除。")
-                shutil.rmtree(self.output_path, ignore_errors=True)
+    while not stop_event.is_set() or not frame_queue.empty() or not servo_queue.empty():
+        if not frame_queue.empty() and not servo_queue.empty():
+            try:
+                frame = frame_queue.get_nowait()
+                servo_action = servo_queue.get_nowait()
+                frames_batch.append(frame)
+                servo_batch.append(servo_action)
 
+                if len(frames_batch) >= 120 and len(servo_batch) >= 120:
+                    # 批量写入
+                    await asyncio.to_thread(write_manager.write_top_image_with_timestamp, frames_batch)
+                    await asyncio.to_thread(write_manager.write_eye_action_with_timestamp, servo_batch)
+                    frames_batch.clear()
+                    servo_batch.clear()
+            except queue.Empty:
+                await asyncio.sleep(0.01)
+        else:
+            await asyncio.sleep(0.01)
+
+    print("第三个线程（数据写入）结束")
+
+def main():
+    save_path = "output_data.h5"
+    capture_manager = VideoRecorder()
+
+    capture_manager.initialize(save_path=save_path)
+
+    frame_queue = capture_manager.frame_queue
+    servo_queue = capture_manager.servo_queue
+
+    write_manager = WriteManager_HDF5(save_path)
+
+    stop_event = threading.Event()
+
+    # 启动显示与捕获线程
+    capture_thread = capture_manager.start()
+
+    # 启动舵机控制线程
+    control_servo_thread = threading.Thread(target=control_servo, args=(servo_queue, frame_queue, stop_event))
+    control_servo_thread.start()
+
+    loop = asyncio.get_event_loop()
+
+    # 启动异步写入任务
+    write_data_task = loop.create_task(write_data_to_h5_async(frame_queue, servo_queue, write_manager, stop_event))
+
+    while True:
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            capture_manager.on_quit()
+            break
+
+    stop_event.set()
+
+    # 等待所有线程完成
+    capture_thread.join()  
+    control_servo_thread.join()  
+    loop.run_until_complete(write_data_task) 
+
+    print(f"✅ 数据保存到: {save_path}")
+    capture_manager.release()
 
 if __name__ == "__main__":
-    async def main():
-        recorder = VideoRecorder()
-        await recorder.start()
-        print("调试完成")
-
-    asyncio.run(main())
+    main()

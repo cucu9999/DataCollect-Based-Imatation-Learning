@@ -60,7 +60,7 @@ class DisplayManager:
 
     def stop(self):
         self.stop_event.set()
-        if self.display_thread:
+        if self.display_thread and self.display_thread != threading.current_thread():
             self.display_thread.join(timeout=1.0)
 
     def should_stop(self):
@@ -86,5 +86,3 @@ if __name__ == "__main__":
             display.update_frame(dummy_frame)
     finally:
         display.stop() 
-
-
